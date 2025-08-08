@@ -10,6 +10,8 @@ import { RootStackParamList } from '../types/navigation';
 import theme from '../styles/theme';
 import Header from '../components/Header';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import StatisticsCard from '../components/StatisticsCard';
+import { statisticsService, Statistics } from '../services/statistics';
 
 type DoctorDashboardScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DoctorDashboard'>;
@@ -58,6 +60,7 @@ const DoctorDashboardScreen: React.FC = () => {
   const navigation = useNavigation<DoctorDashboardScreenProps['navigation']>();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statistics, setStatistics] = useState<Statistics | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -69,6 +72,9 @@ const DoctorDashboardScreen: React.FC = () => {
         );
         setAppointments(doctorAppointments);
       }
+
+      const stats = await statisticsService.getDoctorStatistics(user?.id);
+      setStatistics(stats);
     } catch (error) {
       console.error('Erro ao carregar consultas:', error);
     } finally {
@@ -114,6 +120,57 @@ const DoctorDashboardScreen: React.FC = () => {
           containerStyle={styles.button as ViewStyle}
           buttonStyle={styles.buttonStyle}
         />
+        <SectionTitle>Estatísticas Médico</SectionTitle>
+        {statistics && (
+          <StatisticsGrid>
+            <StatisticsCard
+              title="Total de Consultas"
+              value={statistics.totalAppointments}
+              color={theme.colors.primary}
+              subtitle="Todas as consultas"
+            />
+            <StatisticsCard
+              title="Consultas Confirmadas"
+              value={statistics.confirmedAppointments}
+              color={theme.colors.success}
+              subtitle={`${statistics.statusPercentages.confirmed.toFixed(1)}% do total`}
+            />
+            <StatisticsCard
+              title="Consultas pendentes"
+              value={statistics.pendingAppointments}
+              color={theme.colors.warning}
+              subtitle={`${statistics.statusPercentages.confirmed.toFixed(1)}% do total`}
+            />
+            <StatisticsCard
+              title="Consultas canceladas"
+              value={statistics.cancelledAppointments}
+              color={theme.colors.error}
+              subtitle="Consultas canceladas"
+            />
+            <StatisticsCard
+              title="Pacientes Ativos"
+              value={statistics.totalPatients}
+              color={theme.colors.secondary}
+              subtitle="Pacientes únicos"
+            />
+          </StatisticsGrid>
+        )}
+
+        <SectionTitle>Especialidades Mais Procuradas</SectionTitle>
+        {statistics && Object.entries(statistics.specialties).length > 0 && (
+          <SpecialtyContainer>
+            {Object.entries(statistics.specialties)
+              .sort(([,a], [,b]) => b - a)
+              .slice(0, 3)
+              .map(([specialty, count]) => (
+                <SpecialtyItem key={specialty}>
+                  <SpecialtyName>{specialty}</SpecialtyName>
+                  <SpecialtyCount>{count} consultas</SpecialtyCount>
+                </SpecialtyItem>
+              ))
+            }
+          </SpecialtyContainer>
+        )}
 
         {loading ? (
           <LoadingText>Carregando consultas...</LoadingText>
