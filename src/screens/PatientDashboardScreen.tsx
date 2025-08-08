@@ -102,6 +102,12 @@ const PatientDashboardScreen: React.FC = () => {
           containerStyle={styles.button as ViewStyle}
           buttonStyle={styles.buttonStyle}
         />
+        <Button
+          title="Configurações"
+          onPress={() => navigation.navigate('Settings')}
+          containerStyle={styles.button as ViewStyle}
+          buttonStyle={styles.settingsButton}
+        />
 
         {loading ? (
           <LoadingText>Carregando consultas...</LoadingText>
@@ -179,6 +185,10 @@ const styles = {
     fontSize: 16,
     fontWeight: '700',
     color: theme.colors.text,
+  },
+  settingsButton: {
+  backgroundColor: theme.colors.secondary,
+  paddingVertical: 12,
   },
 };
 
