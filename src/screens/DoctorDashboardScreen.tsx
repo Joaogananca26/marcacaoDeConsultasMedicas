@@ -78,7 +78,7 @@ const DoctorDashboardScreen: React.FC = () => {
         setAppointments(doctorAppointments);
       }
 
-      const stats = await statisticsService.getDoctorStatistics(user?.id);
+      const stats = await statisticsService.getDoctorStatistics(user.id);
       setStatistics(stats);
     } catch (error) {
       console.error('Erro ao carregar consultas:', error);
