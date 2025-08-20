@@ -10,10 +10,10 @@ import { RootStackParamList } from '../types/navigation';
 import theme from '../styles/theme';
 import Header from '../components/Header';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import StatisticsCard from '../components/StatisticsCard';
-import { statisticsService, Statistics } from '../services/statistics';
 import AppointmentActionModal from '../components/AppointmentActionModal';
 import { notificationService } from '../services/notifications';
+import StatisticsCard from '../components/StatisticsCard';
+import { statisticsService, Statistics } from '../services/statistics';
 
 type DoctorDashboardScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DoctorDashboard'>;
@@ -58,17 +58,18 @@ const getStatusText = (status: string) => {
 };
 
 const DoctorDashboardScreen: React.FC = () => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [actionType, setActionType] = useState<'confirm' | 'cancel'>('confirm');
   const { user, signOut } = useAuth();
   const navigation = useNavigation<DoctorDashboardScreenProps['navigation']>();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statistics, setStatistics] = useState<Statistics | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [actionType, setActionType] = useState<'confirm' | 'cancel'>('confirm');
+  const [statistics, setStatistics] = useState<Partial<Statistics> | null>(null);
 
-  const loadAppointments = async () => {
+  const loadData = async () => {
     try {
+      // Consultas do médico
       const storedAppointments = await AsyncStorage.getItem('@MedicalApp:appointments');
       if (storedAppointments) {
         const allAppointments: Appointment[] = JSON.parse(storedAppointments);
@@ -78,10 +79,13 @@ const DoctorDashboardScreen: React.FC = () => {
         setAppointments(doctorAppointments);
       }
 
-      const stats = await statisticsService.getDoctorStatistics(user.id);
-      setStatistics(stats);
+      // Estatísticas do médico
+      if (user?.id) {
+        const stats = await statisticsService.getDoctorStatistics(user.id);
+        setStatistics(stats);
+      }
     } catch (error) {
-      console.error('Erro ao carregar consultas:', error);
+      console.error('Erro ao carregar dados do médico:', error);
     } finally {
       setLoading(false);
     }
@@ -131,17 +135,16 @@ const DoctorDashboardScreen: React.FC = () => {
           );
         }
 
-        loadAppointments(); // Recarrega a lista
       }
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
     }
   };
 
-  // Carrega as consultas quando a tela estiver em foco
+  // Carrega as consultas e estatísticas quando a tela estiver em foco
   useFocusEffect(
     React.useCallback(() => {
-      loadAppointments();
+      loadData();
     }, [])
   );
 
@@ -157,62 +160,44 @@ const DoctorDashboardScreen: React.FC = () => {
           containerStyle={styles.button as ViewStyle}
           buttonStyle={styles.buttonStyle}
         />
+
         <Button
           title="Configurações"
           onPress={() => navigation.navigate('Settings')}
           containerStyle={styles.button as ViewStyle}
           buttonStyle={styles.settingsButton}
         />
-        <SectionTitle>Estatísticas Médico</SectionTitle>
-        {statistics && (
-          <StatisticsGrid>
-            <StatisticsCard
-              title="Total de Consultas"
-              value={statistics.totalAppointments}
-              color={theme.colors.primary}
-              subtitle="Todas as consultas"
-            />
-            <StatisticsCard
-              title="Consultas Confirmadas"
-              value={statistics.confirmedAppointments}
-              color={theme.colors.success}
-              subtitle={`${statistics.statusPercentages.confirmed.toFixed(1)}% do total`}
-            />
-            <StatisticsCard
-              title="Consultas pendentes"
-              value={statistics.pendingAppointments}
-              color={theme.colors.warning}
-              subtitle={`${statistics.statusPercentages.confirmed.toFixed(1)}% do total`}
-            />
-            <StatisticsCard
-              title="Consultas canceladas"
-              value={statistics.cancelledAppointments}
-              color={theme.colors.error}
-              subtitle="Consultas canceladas"
-            />
-            <StatisticsCard
-              title="Pacientes Ativos"
-              value={statistics.totalPatients}
-              color={theme.colors.secondary}
-              subtitle="Pacientes únicos"
-            />
-          </StatisticsGrid>
-        )}
 
-        <SectionTitle>Especialidades Mais Procuradas</SectionTitle>
-        {statistics && Object.entries(statistics.specialties).length > 0 && (
-          <SpecialtyContainer>
-            {Object.entries(statistics.specialties)
-              .sort(([,a], [,b]) => b - a)
-              .slice(0, 3)
-              .map(([specialty, count]) => (
-                <SpecialtyItem key={specialty}>
-                  <SpecialtyName>{specialty}</SpecialtyName>
-                  <SpecialtyCount>{count} consultas</SpecialtyCount>
-                </SpecialtyItem>
-              ))
-            }
-          </SpecialtyContainer>
+        {statistics && (
+          <>
+            <SectionTitle>Minhas Estatísticas</SectionTitle>
+            <StatisticsGrid>
+              <StatisticsCard
+                title="Consultas Totais"
+                value={statistics.totalAppointments ?? 0}
+                color={theme.colors.primary}
+                subtitle="Todas as minhas consultas"
+              />
+              <StatisticsCard
+                title="Confirmadas"
+                value={statistics.confirmedAppointments ?? 0}
+                color={theme.colors.success}
+                subtitle={`${(statistics.statusPercentages?.confirmed ?? 0).toFixed(1)}% do total`}
+              />
+              <StatisticsCard
+                title="Pendentes"
+                value={statistics.pendingAppointments ?? 0}
+                color={theme.colors.warning}
+                subtitle={`${(statistics.statusPercentages?.pending ?? 0).toFixed(1)}% do total`}
+              />
+              <StatisticsCard
+                title="Pacientes Atendidos"
+                value={statistics.totalPatients ?? 0}
+                color={theme.colors.secondary}
+                subtitle="Pacientes únicos"
+              />
+            </StatisticsGrid>
+          </>
         )}
 
         {loading ? (
@@ -222,22 +207,21 @@ const DoctorDashboardScreen: React.FC = () => {
         ) : (
           appointments.map((appointment) => (
             <AppointmentCard key={appointment.id}>
-              <ListItem.Content>
-                <ListItem.Title style={styles.patientName as TextStyle}>
-                  Paciente: {appointment.patientName || 'Nome não disponível'}
-                </ListItem.Title>
-                <ListItem.Subtitle style={styles.dateTime as TextStyle}>
-                  {appointment.date} às {appointment.time}
-                </ListItem.Subtitle>
-                <Text style={styles.specialty as TextStyle}>
-                  {appointment.specialty}
-                </Text>
-                <StatusBadge status={appointment.status}>
-                  <StatusText status={appointment.status}>
-                    {getStatusText(appointment.status)}
-                  </StatusText>
-                </StatusBadge>
-                {appointment.status === 'pending' && (
+              <ListItem.Title style={styles.patientName as TextStyle}>
+                Paciente: {appointment.patientName || 'Nome não disponível'}
+              </ListItem.Title>
+              <ListItem.Subtitle style={styles.dateTime as TextStyle}>
+                {appointment.date} às {appointment.time}
+              </ListItem.Subtitle>
+              <Text style={styles.specialty as TextStyle}>
+                {appointment.specialty}
+              </Text>
+              <StatusBadge status={appointment.status}>
+                <StatusText status={appointment.status}>
+                  {getStatusText(appointment.status)}
+                </StatusText>
+              </StatusBadge>
+              {appointment.status === 'pending' && (
                   <ButtonContainer>
                     <Button
                       title="Confirmar"
@@ -253,7 +237,6 @@ const DoctorDashboardScreen: React.FC = () => {
                     />
                   </ButtonContainer>
                 )}
-              </ListItem.Content>
             </AppointmentCard>
           ))
         )}
@@ -292,6 +275,10 @@ const styles = {
     marginBottom: 20,
     width: '100%',
   },
+  settingsButton: {
+    backgroundColor: theme.colors.secondary,
+    paddingVertical: 12,
+  },
   buttonStyle: {
     backgroundColor: theme.colors.primary,
     paddingVertical: 12,
@@ -327,10 +314,6 @@ const styles = {
     fontWeight: '500',
     color: theme.colors.text,
   },
-  settingsButton: {
-  backgroundColor: theme.colors.secondary,
-  paddingVertical: 12,
-  },
 };
 
 const Container = styled.View`
@@ -344,6 +327,20 @@ const Title = styled.Text`
   color: ${theme.colors.text};
   margin-bottom: 20px;
   text-align: center;
+`;
+
+const SectionTitle = styled.Text`
+  font-size: 18px;
+  font-weight: bold;
+  color: ${theme.colors.text};
+  margin: 10px 0;
+`;
+
+const StatisticsGrid = styled.View`
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 20px;
 `;
 
 const AppointmentCard = styled(ListItem)`
@@ -389,4 +386,4 @@ const ButtonContainer = styled.View`
   margin-top: 8px;
 `;
 
-export default DoctorDashboardScreen; 
+export default DoctorDashboardScreen;
