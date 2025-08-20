@@ -221,4 +221,3 @@ const RoleText = styled.Text`
 `;
 
 export default EditProfileScreen;
-
